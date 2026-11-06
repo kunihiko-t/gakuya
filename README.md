@@ -2,7 +2,7 @@
 
 [日本語](README.ja.md)
 
-Stop a rendered video, point at what looks wrong, and hand it to the AI agent you are already talking to. The agent shows you on screen what it thinks you mean, fixes it after you say yes, and the new render opens beside the old one on the same frame.
+Stop a rendered video, point at what looks wrong, and hand it to the AI agent you are already talking to. The agent shows you on screen what it thinks you mean, fixes it after you say yes, and the new render opens beside the old one on the same frame. If you have a program that draws the same picture live, you can also set the lights with knobs the agent offers, and tell it "about this much".
 
 It is built for reviewing AITuber dance and stage renders, and works on any video your browser can decode.
 
@@ -58,7 +58,7 @@ The page is in Japanese for now.
 - **Compare.** Choose the previous version, or a reference video by its path, with an offset in seconds. Both pictures play, stop and step together.
 - **Feel the timing.** A warm ring around the picture pulses on the beat, a blue one where the motion actually starts. The picture itself is never covered. Correct the tempo by hand if the detection is off.
 - **Choose the sound.** Play the reference's sound, a sound file, or only the sound of another video in place of this video's. The waveform and beats come from what is playing; a tempo set by hand stays.
-- **Set the lights.** With a renderer attached (`--live`), see its picture over the video's sound and move the knobs the agent offers. A range drawn here lands on beats and repeats. "このぐらい" tells the agent the values; nothing reaches it before that. You bring the renderer: see [the contract](docs/live-renderer.md).
+- **Set the lights.** With a renderer attached (`--live`), see its picture over the chosen sound and move the knobs the agent offers. A range drawn here lands on beats and repeats. "このぐらい" tells the agent the values; nothing reaches it before that. You bring the renderer: see [the contract](docs/live-renderer.md).
 
 ## Commands
 
@@ -90,7 +90,8 @@ The server listens on `127.0.0.1` only and requires a token created at each star
 
 ## Not supported
 
-- Moving the camera or changing the lights. A video is one camera's picture, so "changing the view" means zoom and pan for now. Both are the next thing being built.
+- Moving the camera. A video is one camera's picture, so "changing the view" means zoom and pan.
+- Changing the lights without a renderer. A video alone can only show the lights it was rendered with.
 - Editing the video. The agent's own tools make the fix; gakuya shows the result.
 - Windows. `gakuya wait` finds the running server with a Unix signal, so it does not work there yet.
 - Browsers other than Chrome have not been tried.
