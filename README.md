@@ -45,7 +45,7 @@ ln -s "$PWD/skills/gakuya" ~/.claude/skills/gakuya
 
 Other agents can follow [skills/gakuya/SKILL.md](skills/gakuya/SKILL.md) as long as they can run a command in the background and be woken when it exits.
 
-To build from source you need [Go](https://go.dev/dl/) 1.27.3 or later and Node 20 or later. `npm install` and `npm run build` make `dist/gakuya`. `go install` does not work on its own, because the page has to be built first.
+To build from source you need [Go](https://go.dev/dl/) 1.27.3 or later and Node 26 or later. `npm install` and `npm run build` make `dist/gakuya`. `go install` does not work on its own, because the page has to be built first.
 
 ## In the page
 
