@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,11 +31,21 @@ func checkLiveURL(raw string) (*url.URL, error) {
 	if err != nil || u.Scheme != "http" || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" {
 		return nil, refused
 	}
-	host := u.Hostname()
-	if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+	var host string
+	switch u.Hostname() {
+	case "127.0.0.1", "localhost":
+		host = "127.0.0.1"
+	case "::1":
+		host = "::1"
+	default:
 		return nil, refused
 	}
-	return u, nil
+	port, err := strconv.ParseUint(u.Port(), 10, 16)
+	if err != nil || port == 0 {
+		return nil, refused
+	}
+	// Rebuilt from a fixed host and a number, so nothing of the input can reach the relay's address.
+	return &url.URL{Scheme: "http", Host: net.JoinHostPort(host, strconv.FormatUint(port, 10))}, nil
 }
 
 // connectLive points the relay at a renderer. Calling it again moves the relay; the one watcher follows.
