@@ -32,11 +32,15 @@ var web embed.FS
 const root = ".gakuya"
 
 const usage = `使い方：
-  gakuya <動画> [--review 名前] [--reference 見本の動画] [--no-open]
+  gakuya <動画> [--review 名前] [--reference 見本の動画] [--audio 音声か動画か reference] [--live 描画側のURL] [--no-open]
   gakuya wait [--review 名前]
   gakuya propose <指摘ID> --frames 先頭-末尾 --region '<[[x,y],…] 0〜1>' --text '<文>'
   gakuya done <指摘ID> --video <書き出し直した動画>
-  gakuya timing [--bpm 数] [--offset 秒] [--cues <JSONファイル>]`
+  gakuya timing [--bpm 数] [--offset 秒] [--cues <JSONファイル>]
+  gakuya live <描画側のURL>
+  gakuya knobs --file <JSONファイル>
+  gakuya reload
+  gakuya render --video <書き出し直した動画>`
 
 func die(message string) {
 	fmt.Fprintln(os.Stderr, message)
@@ -186,7 +190,7 @@ func openBrowser(target string) {
 }
 
 func serve(args []string) {
-	values, positionals := parseArgs(args, []string{"review", "reference"}, []string{"no-open"})
+	values, positionals := parseArgs(args, []string{"review", "reference", "audio", "live"}, []string{"no-open"})
 	if len(positionals) != 1 {
 		die(usage)
 	}
@@ -196,6 +200,12 @@ func serve(args []string) {
 	}
 	if _, err := os.Stat(video); err != nil {
 		die("動画が見つかりません：" + video)
+	}
+	var live *url.URL
+	if raw, ok := values["live"]; ok {
+		if live, err = checkLiveURL(raw); err != nil {
+			die(err.Error())
+		}
 	}
 	name := values["review"]
 	if strings.ContainsAny(name, `/\`) || name == "." || name == ".." {
@@ -222,6 +232,9 @@ func serve(args []string) {
 	if running := readServer(name); running != nil {
 		page := fmt.Sprintf("http://127.0.0.1:%d/?key=%s", running.Port, running.Token)
 		fmt.Println("すでに動いています：" + page)
+		if live != nil {
+			fmt.Println("描画側につなぐには `gakuya live <URL>` を使ってください。")
+		}
 		if values["no-open"] == "" {
 			openBrowser(page)
 		}
@@ -258,6 +271,22 @@ func serve(args []string) {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
+	}
+	if audio := values["audio"]; audio == "reference" {
+		if _, err := srv.applySound(map[string]any{"reference": true}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	} else if audio != "" {
+		abs, err := filepath.Abs(audio)
+		if err == nil {
+			_, err = srv.applySound(map[string]any{"path": abs})
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}
+	if live != nil {
+		srv.connectLive(live)
 	}
 	serverFile := filepath.Join(store.Dir, "server.json")
 	data, err := encodeJSON(serverInfo{srv.port, srv.token, os.Getpid()}, false)
@@ -356,6 +385,59 @@ func runTiming(args []string) {
 	fmt.Println("更新しました。")
 }
 
+func runLive(args []string) {
+	values, positionals := parseArgs(args, []string{"review"}, nil)
+	if len(positionals) != 1 {
+		die(usage)
+	}
+	if _, err := call(findServer(values["review"]), "/api/live", map[string]any{"url": positionals[0]}); err != nil {
+		die(err.Error())
+	}
+	fmt.Println("描画側につなぎました。")
+}
+
+func runKnobs(args []string) {
+	values, _ := parseArgs(args, []string{"review", "file"}, nil)
+	if values["file"] == "" {
+		die(usage)
+	}
+	data, err := os.ReadFile(values["file"])
+	var list any
+	if err == nil {
+		err = json.Unmarshal(data, &list)
+	}
+	if err != nil {
+		die("--file を読めません：" + err.Error())
+	}
+	if _, err := call(findServer(values["review"]), "/api/knobs", list); err != nil {
+		die(err.Error())
+	}
+	fmt.Println("つまみを出しました。")
+}
+
+func runReload(args []string) {
+	values, _ := parseArgs(args, []string{"review"}, nil)
+	if _, err := call(findServer(values["review"]), "/live/reload", map[string]any{}); err != nil {
+		die(err.Error())
+	}
+	fmt.Println("描画側が設定を読み直しました。")
+}
+
+func runRender(args []string) {
+	values, _ := parseArgs(args, []string{"review", "video"}, nil)
+	if values["video"] == "" {
+		die(usage)
+	}
+	video, err := filepath.Abs(values["video"])
+	if err != nil {
+		die(err.Error())
+	}
+	if _, err := call(findServer(values["review"]), "/api/versions", map[string]any{"video": video}); err != nil {
+		die(err.Error())
+	}
+	fmt.Println("新しい版を渡しました。")
+}
+
 func runWait(args []string) {
 	values, _ := parseArgs(args, []string{"review"}, nil)
 	data, err := call(findServer(values["review"]), "/api/wait", nil)
@@ -384,6 +466,14 @@ func main() {
 		runDone(args[1:])
 	case "timing":
 		runTiming(args[1:])
+	case "live":
+		runLive(args[1:])
+	case "knobs":
+		runKnobs(args[1:])
+	case "reload":
+		runReload(args[1:])
+	case "render":
+		runRender(args[1:])
 	default:
 		serve(args)
 	}

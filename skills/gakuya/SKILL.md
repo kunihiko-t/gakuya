@@ -1,6 +1,6 @@
 ---
 name: gakuya
-description: Use when a person is reviewing a rendered video in gakuya and you act as the AI on the other side - receiving notes, confirming the spot on screen, fixing after a yes, and handing back the new render.
+description: Use when a person is reviewing a rendered video in gakuya, or setting its lights with knobs in gakuya, and you act as the AI on the other side.
 ---
 
 # Working with gakuya
@@ -20,9 +20,9 @@ Then go straight to the loop. A long video takes a moment to copy, so if `gakuya
 1. **Listen.** Run `gakuya wait` with `run_in_background: true`. It exits when something happens, and that exit wakes this session. Keep one running for as long as the review is open, and tell the person it is listening.
 
 2. **Read what arrived.** The output is JSON with `event`, `note`, `snapshots` and `video`.
-   - `event.type` is `note`, `yes`, `no` or `not_yet`. `event.reason` is the person's optional line.
+   - `event.type` is `note`, `yes`, `no`, `not_yet` or `settled` (see [Setting the lights live](#setting-the-lights-live)). `event.reason` is the person's optional line.
    - `note.frames` is the range they chose, roughly. `note.anchor` is the exact frame and the shape they drew, in 0..1 of the picture.
-   - For each frame in `snapshots`, read both PNGs: `marked` shows where they pointed, `raw` shows the same frame without the mark. Look at them before you answer. The mark can cover the fault.
+   - For each frame in `snapshots`, read both PNGs: `marked` shows where they pointed, `raw` shows the same frame without the mark. Look at them before you answer. The mark can cover the fault. A note written on the live picture shows that picture only on the frame that was on screen; its other frames come from the last render, with the old lighting.
    - `note.color` is a color they picked, if any.
 
 3. **Confirm the spot.** Show them what you found:
@@ -57,3 +57,31 @@ gakuya timing --cues cues.json
 ```
 
 `cues.json` is `[{ "time": 1.68, "label": "chorus" }]`, in seconds. When cues exist, the warm ring around the picture follows them instead of the beat.
+
+## Setting the lights live
+
+Some looks are hard to put into words: how bright, how glossy. For those the person looks at the real picture, moves a knob, and says "about this much". This needs a renderer: a program that draws the same picture as the final render, described in `docs/live-renderer.md`. For a big change of mood, skip the knobs and talk it through.
+
+1. **Connect.** `gakuya <last render> --live http://127.0.0.1:<port>`, or `gakuya live <url>` for a review already running. The video still provides the frame count, and the sound and beats unless `--audio <file or video>` (or `--audio reference`) plays another sound in their place. If the renderer is not up yet, the page says so and connects once it is.
+
+2. **Measure a value's whole range before you offer a knob.** A value can stop doing anything partway, and where it stops differs from frame to frame. A blur knob once did nothing over nine tenths of its travel on one frame. Step the value across its range on frames from several scenes, calling the renderer's `/knobs` and `/frame` yourself and comparing the pictures. The person's picture moves too, so do this while they are not watching, or tell them first. Then pick `min` and `max` from what you measured, and a `log` scale if equal travel should feel like equal change. If no `min` and `max` work on every frame, find what differs between the frames and change what the knob means in the renderer: lens blur differs with the focus distance, so a knob for the amount of blur works where one for the aperture cannot.
+
+3. **Offer the knobs.** `gakuya knobs --file knobs.json` replaces what is on screen. Offer only what this conversation is about.
+
+   ```json
+   [
+     { "id": "gloss", "label": "服の光沢", "min": 0, "max": 3, "default": 1, "scale": "linear", "scope": "global" },
+     { "id": "hue", "label": "光の色", "min": 0, "max": 360, "default": null, "scale": "linear", "scope": "range", "reset": "場面どおりに戻す" }
+   ]
+   ```
+
+   `global` acts on the whole song, for things like gloss and the character's brightness. `range` acts inside the range chosen on the timeline, for things like the light's color and the scene's brightness. `min` is the left end and may be the larger number. An ID the renderer does not know is refused: add it to the renderer first.
+
+4. **Do not write the lighting settings until the event is `settled`.** Moving a knob tells you nothing, and nothing the person tries is meant yet. The output has `event`, `video` and `timing`.
+   - `event.values` holds every knob on screen. `null` means they let go of it.
+   - `event.frames` applies to `range` knobs only. If it is missing and a `range` knob matters, ask where it goes.
+   - Use `timing` to turn frames and beats into each other. Changes land on the beat: done by the first beat of the range, back by the last. How many beats a change takes depends on the song, so propose it from the song and correct it in conversation.
+
+5. **Write them, and show the result.** Write the values to the lighting settings and run `gakuya reload`. Then run `gakuya knobs` again, which puts every knob back at its default: for a `global` knob, make what you wrote the new default; for a `range` knob, use `null`, so that the settings you wrote are what shows and a value does not spread over the whole song. Then start the next `gakuya wait`.
+
+6. **Render and hand it back.** After a note, use `gakuya done` as usual. When the work began in conversation, with no note, use `gakuya render --video <path>`. Either way the old and new versions sit side by side.

@@ -161,13 +161,17 @@ export class Running {
   }
 }
 
+const children = new Set<ChildProcess>();
+process.once('exit', () => { for (const child of children) child.kill('SIGTERM'); });
+
 /** Starts the binary on `video` in `root` and waits until it has written server.json. */
-export async function startGakuya(video: string, root = mkdtempSync(join(tmpdir(), 'gakuya-app-'))): Promise<Running> {
-  const child = spawn(BIN, [video, '--review', 'r', '--no-open'], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+export async function startGakuya(video: string, root = mkdtempSync(join(tmpdir(), 'gakuya-app-')), extra: string[] = []): Promise<Running> {
+  const child = spawn(BIN, [video, '--review', 'r', '--no-open', ...extra], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
   // A test that fails before it can close this must not keep the test process alive forever.
   child.unref();
   for (const pipe of [child.stdout, child.stderr]) (pipe as unknown as { unref(): void }).unref();
-  process.once('exit', () => child.kill('SIGTERM'));
+  children.add(child);
+  child.once('exit', () => children.delete(child));
   let stderr = '';
   child.stderr!.on('data', (d) => { stderr += d; });
   const dir = join(root, '.gakuya', 'r'), file = join(dir, 'server.json');

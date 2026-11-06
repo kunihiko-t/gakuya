@@ -50,9 +50,12 @@ export async function renderSnapshots(viewer: Viewer, frames: [number, number], 
   c.height = Math.round(src.height * k);
   const x = c.getContext('2d')!;
   const wanted = [...new Set([frames[0], Math.round((frames[0] + frames[1]) / 2), frames[1], anchorFrame])].sort((a, b) => a - b);
+  // ponytail: only the frame on screen has a live picture; the other frames of a range stay as the video drew them.
+  const live = viewer.content.querySelector<HTMLCanvasElement>('canvas.live:not([hidden])');
   const out: SnapshotUpload[] = [];
   for (const frame of wanted) {
-    await src.draw(frame, x);
+    if (live?.dataset.frame === String(frame)) x.drawImage(live, 0, 0, c.width, c.height);
+    else await src.draw(frame, x);
     out.push({ frame, kind: 'raw', data: await canvasToBase64(c) });
     if (shape.length) {
       x.strokeStyle = MARK_COLOR;

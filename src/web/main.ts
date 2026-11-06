@@ -1,6 +1,8 @@
 import type { Reference, StreamState, VideoVersion } from '../shared/types.ts';
 import { post, stream } from './api.ts';
+import { Sound } from './sound.ts';
 import { Compare } from './compare.ts';
+import { Live } from './live.ts';
 import { NotesPanel } from './notes.ts';
 import { t } from './strings.ts';
 import { TimingPanel } from './timing.ts';
@@ -21,6 +23,8 @@ const compare = new Compare(left, right);
 const timeline = new Timeline($('timeline'), 1);
 const panel = new NotesPanel($('side'), left, timeline);
 const timing = new TimingPanel(left, timeline);
+const live = new Live(left, timeline);
+const sound = new Sound(left, () => { soundError.textContent = t.soundUnreadable; });
 const playButton = $('play') as HTMLButtonElement;
 const comparePick = $('compare-pick') as HTMLSelectElement;
 let state: StreamState | null = null;
@@ -154,6 +158,52 @@ function saveReference(body: Partial<Reference>): void {
 refPath.addEventListener('change', () => { if (refPath.value.trim()) saveReference({ path: refPath.value.trim() }); refPath.blur(); });
 refOffset.addEventListener('change', () => { saveReference({ offsetSeconds: Number(refOffset.value) || 0 }); refOffset.blur(); });
 
+const soundPick = $('sound-pick') as HTMLSelectElement;
+const soundPath = $('sound-path') as HTMLInputElement;
+const soundOffset = $('sound-offset') as HTMLInputElement;
+const soundError = $('sound-error');
+let soundLoads = 0;
+let soundShown = '';
+let wantFile = false;
+
+function saveSound(body: unknown): void {
+  soundError.textContent = '';
+  post('/api/sound', body).catch((e: Error) => { soundError.textContent = e.message; });
+}
+soundPick.addEventListener('change', () => {
+  wantFile = soundPick.value === 'file';
+  $('sound-bar').hidden = !wantFile;
+  if (soundPick.value === 'video') saveSound(null);
+  if (soundPick.value === 'reference') saveSound({ reference: true });
+  soundPick.blur();
+});
+soundPath.addEventListener('change', () => { if (soundPath.value.trim()) saveSound({ path: soundPath.value.trim() }); soundPath.blur(); });
+soundOffset.addEventListener('change', () => { saveSound({ offsetSeconds: Number(soundOffset.value) || 0 }); soundOffset.blur(); });
+
+function onSound(review: StreamState['review']): void {
+  const s = review.sound;
+  const ref = review.reference;
+  const options: [string, string, boolean][] = [['video', t.soundVideo, true], ['reference', t.compareRef, !!ref], ['file', t.soundFile, true]];
+  const value = s?.reference ? 'reference' : s?.path || wantFile ? 'file' : 'video';
+  soundPick.replaceChildren(...options.map(([v, label, enabled]) => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = label; o.disabled = !enabled;
+    return o;
+  }));
+  soundPick.value = value;
+  $('sound-bar').hidden = value !== 'file';
+  if (document.activeElement !== soundPath && s?.path) soundPath.value = s.path;
+  if (document.activeElement !== soundOffset) soundOffset.value = String(s?.offsetSeconds ?? 0);
+  const offset = s?.reference ? ref?.offsetSeconds ?? 0 : s?.offsetSeconds ?? 0;
+  const key = s ? JSON.stringify([s.reference ? ref?.path : s.path, offset, current?.id]) : '';
+  if (key === soundShown || !left.source) return;
+  soundShown = key;
+  // The URL stays the same when the path changes, so make each load its own.
+  const url = s ? `/media/sound?n=${++soundLoads}` : null;
+  sound.set(url, offset);
+  void timing.setSound(url, offset);
+}
+
 function onReference(ref: Reference | null): void {
   const was = referenceShown;
   referenceShown = ref;
@@ -170,6 +220,8 @@ async function openVersion(v: VideoVersion, hadVersion: boolean): Promise<void> 
   leftLabel.textContent = t.thisVersion(v.id);
   timeline.frames = v.frames;
   await left.open(`/media/version/${encodeURIComponent(v.id)}`);
+  soundShown = '';
+  if (state) onSound(state.review);
   void timing.open(v.id);
   if (hadVersion) mode = 'prev';
   await applyMode();
@@ -185,10 +237,12 @@ function onState(s: StreamState): void {
   if (!current && s.review.reference) mode = 'reference';
   panel.render(s);
   onReference(s.review.reference);
+  onSound(s.review);
   timing.render(s.review.timing);
+  live.update(s);
   if (changed) void openVersion(latest, hadVersion);
   else refreshPick();
 }
 
 stream(onState, () => left.showMessage(t.connectionLost));
-Object.assign(window, { gakuya: { left, right, timeline, compare, flash: timing.flash } });
+Object.assign(window, { gakuya: { left, right, timeline, compare, live, sound, timing, flash: timing.flash } });

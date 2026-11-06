@@ -35,6 +35,18 @@ test('the skill says how to stay in the loop, and never to fix before a yes', ()
   assert.match(skill, /start the next `?gakuya wait`?/i);
 });
 
+test('the skill says how to set lights live, and never to write them before the person settles', () => {
+  const skill = readFileSync('skills/gakuya/SKILL.md', 'utf8');
+  for (const word of ['gakuya knobs', 'gakuya live', 'gakuya reload', 'gakuya render', 'settled', 'docs/live-renderer.md']) assert.ok(skill.includes(word), word);
+  assert.match(skill, /do not write[^.]*until[^.]*`settled`/i);
+  assert.match(skill, /measure[^.]*before[^.]*knob/i);
+});
+
+test('the renderer contract is written down', () => {
+  const doc = readFileSync('docs/live-renderer.md', 'utf8');
+  for (const word of ['GET /info', 'GET /frame', 'POST /knobs', 'POST /reload', 'X-Frame-Id', 'X-Song-Frame', 'X-Knob-Seq']) assert.ok(doc.includes(word), word);
+});
+
 test('the README covers install, formats, .gakuya and what is not done', () => {
   const readme = readFileSync('README.md', 'utf8');
   for (const word of ['npm install', 'H.264', '.gakuya/', 'Not supported']) assert.ok(readme.includes(word), word);
