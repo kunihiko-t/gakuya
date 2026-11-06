@@ -55,7 +55,7 @@ ln -s "$PWD/skills/gakuya" ~/.claude/skills/gakuya
 
 ほかのエージェントでも、コマンドを裏で走らせ、終わったときに起こしてもらえるなら、[skills/gakuya/SKILL.md](skills/gakuya/SKILL.md) の手順で使えるはずです（Claude Code 以外では試していません）。
 
-ソースからビルドするには、[Go](https://go.dev/dl/) 1.27.3 以上と Node 20 以上が要ります。
+ソースからビルドするには、[Go](https://go.dev/dl/) 1.27.3 以上と Node 26 以上が要ります。
 `npm install` と `npm run build` で `dist/gakuya` ができます。
 画面を先にビルドする必要があるため、`go install` だけでは動きません。
 
