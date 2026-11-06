@@ -118,5 +118,8 @@ npm test
 
 ## ライセンス
 
-ライセンスはまだ決めていません。
+[MIT](LICENSE) です。
+画面には MPL-2.0 の [mediabunny](https://github.com/Vanilagy/mediabunny) を同梱しています。
+
+`docs/media` の画像はライセンスの対象外です。
 画像のキャラクターは作者のもので、例として載せています。

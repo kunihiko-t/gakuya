@@ -99,4 +99,6 @@ This builds the binary, then runs the Go tests and the browser tests against tha
 
 ## License
 
-The license has not been decided yet. The character in the pictures belongs to the author and appears here only as an example.
+[MIT](LICENSE). The page bundles [mediabunny](https://github.com/Vanilagy/mediabunny), which is under MPL-2.0.
+
+The license does not cover the images in `docs/media`. The character in them belongs to the author and appears here only as an example.

@@ -35,7 +35,7 @@ jobs:
             name="gakuya_${target%/*}_${target#*/}"
             mkdir -p "release/$name/skills"
             GOOS="${target%/*}" GOARCH="${target#*/}" CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o "release/$name/gakuya" ./cmd/gakuya
-            cp README.md README.ja.md "release/$name/"
+            cp README.md README.ja.md LICENSE "release/$name/"
             cp -R skills/gakuya "release/$name/skills/"
             tar -C release -czf "release/$name.tar.gz" "$name"
           done
