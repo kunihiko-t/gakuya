@@ -25,6 +25,10 @@ Nothing gets fixed until you press yes. If the agent has the wrong spot, point a
 
 ![The new version and the previous version side by side on frame 90](docs/media/compare.png)
 
+For lighting, the page can show a renderer's picture instead of the video. Move the knobs the agent offers, choose a range on the timeline for the ones that act on part of the song, and press "このぐらい" (about this much).
+
+![The live picture with the agent's knobs beside it, and a range chosen on the timeline](docs/media/live.png)
+
 ## Install
 
 Running needs only Chrome: the page is embedded in a single binary. Take the archive for your machine from [Releases](https://github.com/kunihiko-t/gakuya/releases): `darwin_arm64` for Apple silicon, `darwin_amd64` for Intel Macs, `linux_amd64` or `linux_arm64` for Linux.
@@ -102,7 +106,7 @@ The server listens on `127.0.0.1` only and requires a token created at each star
 npm test
 ```
 
-This builds the binary, then runs the Go tests and the browser tests against that binary from the outside. To retake the pictures above with your own renders, see the top of [scripts/make-demo.mjs](scripts/make-demo.mjs).
+This builds the binary, then runs the Go tests and the browser tests against that binary from the outside. To retake the pictures above with your own renders, see the top of [scripts/make-demo.mjs](scripts/make-demo.mjs). The script does not make `live.png`, which needs a renderer.
 
 ## License
 
