@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Windows is left out: `gakuya wait` finds the server with signal 0, which Windows does not have.
+      - name: Package
+        run: |
+          mkdir release
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
+            name="gakuya_${target%/*}_${target#*/}"
+            mkdir -p "release/$name/skills"
+            GOOS="${target%/*}" GOARCH="${target#*/}" CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o "release/$name/gakuya" ./cmd/gakuya
+            cp README.md README.ja.md "release/$name/"
+            cp -R skills/gakuya "release/$name/skills/"
+            tar -C release -czf "release/$name.tar.gz" "$name"
+          done
+          (cd release && sha256sum *.tar.gz > SHA256SUMS)
+      - run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes release/*.tar.gz release/SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}

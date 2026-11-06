@@ -1,0 +1,9 @@
+node_modules
+dist
+.gakuya
+.superpowers
+tests/.tmp
+cmd/gakuya/web/*
+!cmd/gakuya/web/.gitkeep
+.banned-words
+docs/superpowers/plans/

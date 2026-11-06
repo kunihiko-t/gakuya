@@ -1,0 +1,26 @@
+{
+  "name": "gakuya",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Pause a rendered AITuber video, point at what looks wrong, and hand it to an AI agent.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node build.mjs && go test ./cmd/... && tsx --test tests/*.test.ts",
+    "demo": "node scripts/make-demo.mjs"
+  },
+  "dependencies": {
+    "mediabunny": "^1.65.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "esbuild": "^0.28.2",
+    "playwright-core": "^1.65.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
