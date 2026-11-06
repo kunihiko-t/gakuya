@@ -14,6 +14,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -36,6 +37,8 @@ var (
 	mediaTypes = map[string]string{".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".mkv": "video/x-matroska"}
 	staticFile = map[string]string{"/": "index.html", "/main.js": "main.js", "/style.css": "style.css"}
 	staticType = map[string]string{".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8"}
+
+	soundTypes = map[string]string{".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".flac": "audio/flac", ".ogg": "audio/ogg", ".opus": "audio/ogg"}
 
 	versionRoute  = regexp.MustCompile(`^/media/version/([^/]+)$`)
 	snapshotRoute = regexp.MustCompile(`^/notes/([^/]+)$`)
@@ -191,6 +194,12 @@ type server struct {
 	waiters  []*waiter
 	inflight bool // an event has been handed to a waiter and is not yet written
 	streams  map[chan struct{}]struct{}
+
+	// The renderer, when there is one. See live.go.
+	liveURL     *url.URL
+	liveRelay   *httputil.ReverseProxy
+	liveProblem string
+	liveKnobs   []string
 }
 
 func startServer(store *Store, web fs.FS) (*server, error) {
@@ -253,11 +262,20 @@ func (s *server) finishDelivery() {
 func (s *server) state() ([]byte, error) {
 	s.mu.Lock()
 	waiting := len(s.waiters)
+	var live *liveState
+	if s.liveURL != nil {
+		live = &liveState{Problem: s.liveProblem}
+	}
 	s.mu.Unlock()
 	return encodeJSON(struct {
-		Review  Review `json:"review"`
-		Waiting int    `json:"waiting"`
-	}{s.store.Review(), waiting}, false)
+		Review  Review     `json:"review"`
+		Waiting int        `json:"waiting"`
+		Live    *liveState `json:"live"`
+	}{s.store.Review(), waiting, live}, false)
+}
+
+type liveState struct {
+	Problem string `json:"problem"`
 }
 
 func (s *server) sameToken(t string) bool {
@@ -352,6 +370,9 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) error {
 	if !s.authed(r) {
 		return &httpError{401, "トークンが必要です"}
 	}
+	if strings.HasPrefix(path, "/live/") {
+		return s.relayLive(w, r, path)
+	}
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
 		return s.routeGet(w, r, path)
@@ -378,6 +399,16 @@ func (s *server) routeGet(w http.ResponseWriter, r *http.Request, path string) e
 		return s.handleStream(w, r)
 	case "/api/wait":
 		return s.handleWait(w, r)
+	case "/media/sound":
+		review := s.store.Review()
+		if review.Sound == nil || (review.Sound.Reference && review.Reference == nil) {
+			return &httpError{404, "音がありません"}
+		}
+		path := review.Sound.Path
+		if review.Sound.Reference {
+			path = review.Reference.Path
+		}
+		return sendFile(w, r, path, soundType(path))
 	case "/media/reference":
 		ref := s.store.Review().Reference
 		if ref == nil {
@@ -513,6 +544,10 @@ func (s *server) handleWait(w http.ResponseWriter, r *http.Request) error {
 // The response ends when the handler returns, so the client sees the end only after the mark is on disk.
 func (s *server) deliver(w http.ResponseWriter, flusher http.Flusher, event GakuyaEvent) {
 	defer s.finishDelivery()
+	if event.Type == "settled" {
+		s.deliverSettled(w, flusher, event)
+		return
+	}
 	note, err := s.store.Note(event.NoteID)
 	if err != nil {
 		return
@@ -598,6 +633,20 @@ func (s *server) routePost(w http.ResponseWriter, r *http.Request, path string) 
 			return err
 		}
 		return writeJSON(w, ref)
+	case "/api/sound":
+		sound, err := s.applySound(body)
+		if err != nil {
+			return err
+		}
+		return writeJSON(w, sound)
+	case "/api/knobs":
+		return s.applyKnobs(w, body)
+	case "/api/settled":
+		return s.settle(w, body)
+	case "/api/live":
+		return s.applyLive(w, body)
+	case "/api/versions":
+		return s.addRender(w, body)
 	}
 	if m := noteRoute.FindStringSubmatch(path); m != nil {
 		id, err := segment(m[1])
@@ -776,6 +825,56 @@ func (s *server) done(id string, body any, note Note) error {
 		return err
 	}
 	return s.store.Done(id, v.ID)
+}
+
+// soundType also refuses anything that is not sound or video, so the page cannot read other files through this.
+func soundType(path string) string {
+	if kind, ok := soundTypes[strings.ToLower(filepath.Ext(path))]; ok {
+		return kind
+	}
+	return mediaTypes[strings.ToLower(filepath.Ext(path))]
+}
+
+// applySound chooses the sound from an API body: null is the video's own, a missing field keeps its current value.
+func (s *server) applySound(body any) (*Sound, error) {
+	if body == nil {
+		return nil, s.store.SetSound(nil)
+	}
+	if raw, _ := field(body, "reference"); raw == true {
+		if s.store.Review().Reference == nil {
+			return nil, bad("見本がありません")
+		}
+		sound := Sound{Reference: true}
+		return &sound, s.store.SetSound(&sound)
+	}
+	sound := Sound{}
+	if current := s.store.Review().Sound; current != nil && !current.Reference {
+		sound = *current
+	}
+	if raw, _ := field(body, "offsetSeconds"); raw != nil {
+		offset, isNum := raw.(float64)
+		if !isNum {
+			return nil, bad("offsetSeconds は秒の数値にしてください")
+		}
+		sound.OffsetSeconds = offset
+	}
+	if raw, _ := field(body, "path"); raw != nil {
+		path, isText := raw.(string)
+		if !isText {
+			return nil, bad("音のパスは絶対パスにしてください")
+		}
+		sound.Path = path
+	}
+	if !filepath.IsAbs(sound.Path) {
+		return nil, bad("音のパスは絶対パスにしてください")
+	}
+	if soundType(sound.Path) == "" {
+		return nil, bad(fmt.Sprintf("音声か動画のファイルを指定してください：%s", sound.Path))
+	}
+	if info, err := os.Stat(sound.Path); err != nil || info.IsDir() {
+		return nil, bad(fmt.Sprintf("音のファイルを読めません：%s", sound.Path))
+	}
+	return &sound, s.store.SetSound(&sound)
 }
 
 // applyReference sets the reference video from an API body: null clears it, a missing field keeps its current value.

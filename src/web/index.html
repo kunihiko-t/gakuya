@@ -13,6 +13,9 @@
   <span id="version-label"></span>
   <span id="frame-no"></span>
   <span class="spacer"></span>
+  <span id="live-problem" class="error"></span>
+  <button id="live-toggle" type="button" hidden></button>
+  <label id="sound-area">音 <select id="sound-pick"></select></label>
   <label id="compare-area"><span id="compare-label"></span> <select id="compare-pick"></select></label>
 </header>
 <div id="reference-bar" hidden>
@@ -20,12 +23,17 @@
   <label>ズレ <input id="ref-offset" type="number" step="0.01" value="0"> 秒</label>
   <span id="ref-error" class="error"></span>
 </div>
+<div id="sound-bar" hidden>
+  <label>音のファイルのパス（音声か動画。サーバーが動いているこの PC の絶対パス） <input id="sound-path" type="text" spellcheck="false"></label>
+  <label>ズレ <input id="sound-offset" type="number" step="0.01" value="0"> 秒</label>
+</div>
+<span id="sound-error" class="error"></span>
 <main id="stage">
   <div id="panes">
     <div id="left" class="pane"></div>
     <div id="right" class="pane" hidden></div>
   </div>
-  <aside id="side"></aside>
+  <aside id="side"><section id="knobs" hidden></section></aside>
 </main>
 <section id="timeline">
   <div id="timing">

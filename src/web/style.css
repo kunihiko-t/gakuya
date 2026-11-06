@@ -16,6 +16,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 #top .spacer { flex: 1; }
 #frame-no { font-variant-numeric: tabular-nums; }
 #review-name, #version-label { color: var(--muted); }
+#sound-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 6px 12px; }
+#sound-bar[hidden] { display: none; }
+#sound-bar input[type=text] { width: 28em; }
+#sound-error:not(:empty) { display: block; padding: 4px 12px; }
 #reference-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 #reference-bar[hidden] { display: none; }
 #ref-path { width: min(520px, 50vw); }
@@ -36,6 +40,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .message { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: var(--danger); }
 .message.info { color: var(--muted); }
 #side { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+#knobs { display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+#knobs[hidden] { display: none; }
+.knob label { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; }
+.knob b { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.knob input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--ai); }
+.knob button { margin-top: 2px; font-size: 12px; padding: 2px 8px; }
+#knobs .said { min-height: 1.5em; font-size: 12px; color: var(--ai); }
+.content canvas.live[hidden] { display: none; }
 #side h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
 #timeline { border-top: 1px solid var(--line); padding: 8px 12px 10px; }
 #timeline canvas { display: block; width: 100%; height: 72px; border-radius: 4px; cursor: text; touch-action: none; }

@@ -11,10 +11,21 @@ export interface Note {
 export interface Cue { time: number; label?: string }
 export interface Timing { bpm: number | null; offset: number; source: 'auto' | 'manual' | 'agent'; cues: Cue[] }
 export interface Reference { path: string; offsetSeconds: number }
-export interface GakuyaEvent { seq: number; type: 'note' | 'yes' | 'no' | 'not_yet'; noteId: string; reason?: string }
+export interface GakuyaEvent {
+  seq: number; type: 'note' | 'yes' | 'no' | 'not_yet' | 'settled'; noteId: string; reason?: string;
+  /** Only for 'settled'. */
+  values?: Record<string, number | null>; frames?: [number, number]; frame?: number;
+}
+/** One slider the agent put on screen. `min` is the left end and may be the larger number. */
+export interface Knob {
+  id: string; label: string; min: number; max: number; default: number | null;
+  scale: 'linear' | 'log'; scope: 'global' | 'range'; reset?: string;
+}
+/** Plays instead of the video's own sound. The reference uses the reference's offset. */
+export interface Sound { reference?: boolean; path?: string; offsetSeconds?: number }
 export interface Review {
-  name: string; versions: VideoVersion[]; reference: Reference | null; timing: Timing;
-  notes: Note[]; events: GakuyaEvent[]; nextSeq: number;
+  name: string; versions: VideoVersion[]; reference: Reference | null; sound: Sound | null; timing: Timing;
+  notes: Note[]; events: GakuyaEvent[]; nextSeq: number; knobs: Knob[]; knobsRev: number;
 }
 export interface NewNote { frames: [number, number]; anchor: Anchor; text: string; color?: string | null; version?: string; snapshots?: string[] }
 export interface Answer {
@@ -22,7 +33,7 @@ export interface Answer {
   edit?: { frames?: [number, number]; anchor?: Anchor; snapshots?: string[] };
 }
 /** What GET /api/stream sends. */
-export interface StreamState { review: Review; waiting: number }
+export interface StreamState { review: Review; waiting: number; live: { problem: string } | null }
 /** A PNG sent along with a note, so the images exist before the agent hears of it. */
 export interface SnapshotUpload { frame: number; kind: 'raw' | 'marked'; data: string }
 /** What GET /api/wait returns. Snapshot paths are absolute, ready to read. */

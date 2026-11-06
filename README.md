@@ -57,17 +57,23 @@ The page is in Japanese for now.
 - **Pick a color.** Use the color box or the eyedropper to attach a color to the note.
 - **Compare.** Choose the previous version, or a reference video by its path, with an offset in seconds. Both pictures play, stop and step together.
 - **Feel the timing.** A warm ring around the picture pulses on the beat, a blue one where the motion actually starts. The picture itself is never covered. Correct the tempo by hand if the detection is off.
+- **Choose the sound.** Play the reference's sound, a sound file, or only the sound of another video in place of this video's. The waveform and beats come from what is playing; a tempo set by hand stays.
+- **Set the lights.** With a renderer attached (`--live`), see its picture over the video's sound and move the knobs the agent offers. A range drawn here lands on beats and repeats. "このぐらい" tells the agent the values; nothing reaches it before that. You bring the renderer: see [the contract](docs/live-renderer.md).
 
 ## Commands
 
 The agent runs these from the folder the review was started in. The skill describes the whole loop.
 
 ```text
-gakuya <video> [--review name] [--reference video] [--no-open]
+gakuya <video> [--review name] [--reference video] [--audio file-or-video-or-reference] [--live renderer-url] [--no-open]
 gakuya wait [--review name]
 gakuya propose <note> --frames 10-20 --region '[[0.1,0.1],[0.3,0.1],[0.3,0.3]]' --text 'Here?'
 gakuya done <note> --video path/to/new-render.mp4
 gakuya timing [--bpm 128] [--offset 0.18] [--cues cues.json]
+gakuya live http://127.0.0.1:8917
+gakuya knobs --file knobs.json
+gakuya reload
+gakuya render --video path/to/new-render.mp4
 ```
 
 ## Video formats
@@ -78,7 +84,7 @@ Frame numbers count from 0 in presentation order, so videos with a variable fram
 
 ## Your files and security
 
-gakuya keeps its state in `.gakuya/` under the folder you start it in: copies of each version, your notes, their snapshots. **Keep `.gakuya/` out of git.** It holds your renders. A reference video is only ever pointed to, never copied.
+gakuya keeps its state in `.gakuya/` under the folder you start it in: copies of each version, your notes, their snapshots. **Keep `.gakuya/` out of git.** It holds your renders. A reference video or a sound file is only ever pointed to, never copied.
 
 The server listens on `127.0.0.1` only and requires a token created at each start. Nothing is uploaded. What the agent does with the snapshots it reads depends on the agent you use.
 

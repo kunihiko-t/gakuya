@@ -61,20 +61,43 @@ type (
 		Path          string  `json:"path"`
 		OffsetSeconds float64 `json:"offsetSeconds"`
 	}
+	// Sound is what plays instead of the video's own sound: the reference, or a file. Only the path is kept.
+	Sound struct {
+		Reference     bool    `json:"reference,omitempty"`
+		Path          string  `json:"path,omitempty"`
+		OffsetSeconds float64 `json:"offsetSeconds,omitempty"`
+	}
 	GakuyaEvent struct {
 		Seq    int    `json:"seq"`
 		Type   string `json:"type"`
 		NoteID string `json:"noteId"`
 		Reason string `json:"reason,omitempty"`
+		// Only for "settled": there is no note behind it.
+		Values map[string]*float64 `json:"values,omitempty"`
+		Frames *[2]int             `json:"frames,omitempty"`
+		Frame  *int                `json:"frame,omitempty"`
+	}
+	Knob struct {
+		ID      string   `json:"id"`
+		Label   string   `json:"label"`
+		Min     float64  `json:"min"` // the left end of the slider, which may be the larger number
+		Max     float64  `json:"max"`
+		Default *float64 `json:"default"`
+		Scale   string   `json:"scale"`
+		Scope   string   `json:"scope"`
+		Reset   string   `json:"reset,omitempty"`
 	}
 	Review struct {
 		Name      string         `json:"name"`
 		Versions  []VideoVersion `json:"versions"`
 		Reference *Reference     `json:"reference"`
+		Sound     *Sound         `json:"sound"`
 		Timing    Timing         `json:"timing"`
 		Notes     []Note         `json:"notes"`
 		Events    []GakuyaEvent  `json:"events"`
 		NextSeq   int            `json:"nextSeq"`
+		Knobs     []Knob         `json:"knobs"`
+		KnobsRev  int            `json:"knobsRev"`
 	}
 	NewNote struct {
 		Frames  [2]int
@@ -185,10 +208,13 @@ func OpenStore(root, name string) (*Store, error) {
 			return nil, err
 		}
 		s.review = r
+		if s.review.Knobs == nil { // a review from before knobs existed
+			s.review.Knobs = []Knob{}
+		}
 	} else {
 		s.review = Review{
 			Name: name, Versions: []VideoVersion{}, Notes: []Note{}, Events: []GakuyaEvent{}, NextSeq: 1,
-			Timing: Timing{Source: "auto", Cues: []Cue{}},
+			Timing: Timing{Source: "auto", Cues: []Cue{}}, Knobs: []Knob{},
 		}
 	}
 	return s, nil
@@ -241,6 +267,22 @@ func (s *Store) push(kind, noteID string, reason *string) {
 	}
 	s.review.NextSeq++
 	s.review.Events = append(s.review.Events, e)
+}
+
+func (s *Store) SetKnobs(list []Knob) error {
+	return s.change(func() error {
+		s.review.Knobs = list
+		s.review.KnobsRev++ // offering the same list again still means "back to the defaults"
+		return nil
+	})
+}
+
+func (s *Store) PushSettled(values map[string]*float64, frames *[2]int, frame int) error {
+	return s.change(func() error {
+		s.review.Events = append(s.review.Events, GakuyaEvent{Seq: s.review.NextSeq, Type: "settled", Values: values, Frames: frames, Frame: &frame})
+		s.review.NextSeq++
+		return nil
+	})
 }
 
 func (s *Store) note(id string) (*Note, error) {
@@ -443,6 +485,10 @@ func (s *Store) SetTiming(apply func(*Timing)) error {
 
 func (s *Store) SetReference(r *Reference) error {
 	return s.change(func() error { s.review.Reference = r; return nil })
+}
+
+func (s *Store) SetSound(sound *Sound) error {
+	return s.change(func() error { s.review.Sound = sound; return nil })
 }
 
 func (s *Store) NextEvent() *GakuyaEvent {

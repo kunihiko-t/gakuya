@@ -13,10 +13,18 @@ interface Analysis { audio: 'ok' | 'none' | 'unreadable'; bpm: number | null; of
 const SMALL = 64;
 const AUDIO_RATE = 44100;
 
-async function readAudio(url: string, source: FrameSource): Promise<Pick<Analysis, 'audio' | 'bpm' | 'offset' | 'wave'>> {
-  const none = { bpm: null, offset: 0, wave: [] };
+type Heard = Pick<Analysis, 'audio' | 'bpm' | 'offset' | 'wave'>;
+
+async function readAudio(url: string, source: FrameSource): Promise<Heard> {
   const audioStart = await source.audioStart();
-  if (audioStart === null) return { audio: 'none', ...none };
+  if (audioStart === null) return { audio: 'none', bpm: null, offset: 0, wave: [] };
+  // A negative start is the encoder's delay, which decoding has already removed.
+  return decodeOntoVideo(url, source, Math.round((Math.max(0, audioStart) - source.timeOf(0)) * AUDIO_RATE));
+}
+
+/** Reads a sound onto the video's clock. `shift` is the sample of the video's span where the sound begins. */
+async function decodeOntoVideo(url: string, source: Pick<FrameSource, 'timeOf' | 'frames' | 'fps'>, shift: number): Promise<Heard> {
+  const none = { bpm: null, offset: 0, wave: [] };
   let buffer: AudioBuffer;
   try {
     buffer = await new OfflineAudioContext(1, 1, AUDIO_RATE).decodeAudioData(await (await fetch(url)).arrayBuffer());
@@ -27,8 +35,6 @@ async function readAudio(url: string, source: FrameSource): Promise<Pick<Analysi
   // the track's start time, so put it back here.
   const start = source.timeOf(0);
   const samples = new Float32Array(Math.ceil((source.timeOf(source.frames - 1) + 1 / source.fps - start) * AUDIO_RATE));
-  // A negative start is the encoder's delay, which decoding has already removed.
-  const shift = Math.round((Math.max(0, audioStart) - start) * AUDIO_RATE);
   for (let c = 0; c < buffer.numberOfChannels; c++) {
     const data = buffer.getChannelData(c);
     for (let i = Math.max(0, shift); i < samples.length && i - shift < data.length; i++) samples[i] += data[i - shift] / buffer.numberOfChannels;
@@ -70,6 +76,10 @@ export class TimingPanel {
   private analysis: Analysis | null = null;
   private run = 0;
   private failed = false;
+  /** What is heard when it is not the video's own sound. */
+  private heardSound: Heard | null = null;
+  private soundRun = 0;
+  soundLoading = false;
   private bpm = $<HTMLInputElement>('bpm');
   private offset = $<HTMLInputElement>('offset');
   private status = $('timing-status');
@@ -104,6 +114,27 @@ export class TimingPanel {
     this.apply();
   }
 
+  /** The beats and the waveform follow what is heard. null goes back to the video's own sound. */
+  async setSound(url: string | null, offsetSeconds: number): Promise<void> {
+    const run = ++this.soundRun;
+    this.soundLoading = !!url;
+    let found: Heard | null = null;
+    const src = this.viewer.source;
+    if (url && src) found = await decodeOntoVideo(url, src, Math.round(-offsetSeconds * AUDIO_RATE));
+    if (run !== this.soundRun) return;
+    this.soundLoading = false;
+    this.heardSound = found?.audio === 'ok' ? found : null;
+    await this.followTempo();
+    this.apply();
+  }
+
+  /** Only a tempo found by listening moves with the sound; one set by hand or by the agent stays. */
+  private async followTempo(): Promise<void> {
+    const heard = this.heardSound ?? this.analysis;
+    if (this.timing?.source !== 'auto' || !heard || heard.bpm === null || heard.bpm === this.timing.bpm) return;
+    await post('/api/timing', { bpm: heard.bpm, offset: heard.offset, source: 'auto' });
+  }
+
   /** Call after the viewer has opened this version. Everything else keeps working while this runs. */
   async open(versionId: string): Promise<void> {
     const run = ++this.run;
@@ -121,9 +152,7 @@ export class TimingPanel {
       }
       if (run !== this.run) return;
       this.analysis = found;
-      if (this.timing?.source === 'auto' && this.timing.bpm === null && found.bpm !== null) {
-        await post('/api/timing', { bpm: found.bpm, offset: found.offset, source: 'auto' });
-      }
+      if (this.timing?.bpm === null) await this.followTempo();
     } catch {
       if (run === this.run) this.failed = true;
     }
@@ -137,12 +166,13 @@ export class TimingPanel {
 
   private statusText(a: Analysis, timing: Timing): string {
     const parts: string[] = [];
-    if (a.audio === 'none') parts.push(t.noAudio);
-    if (a.audio === 'unreadable') parts.push(t.audioUnreadable);
+    const audio = this.heardSound?.audio ?? a.audio;
+    if (audio === 'none') parts.push(t.noAudio);
+    if (audio === 'unreadable') parts.push(t.audioUnreadable);
     if (timing.cues.length) parts.push(t.usingCues(timing.cues.length));
     else if (timing.source === 'manual') parts.push(t.tempoManual);
     else if (timing.source === 'agent') parts.push(t.tempoAgent);
-    else if (a.audio === 'ok') parts.push(timing.bpm === null ? t.tempoNotFound : t.tempoAuto);
+    else if (audio === 'ok') parts.push(timing.bpm === null ? t.tempoNotFound : t.tempoAuto);
     return parts.join(' ／ ');
   }
 
@@ -163,7 +193,7 @@ export class TimingPanel {
     // Cuts are spikes far above the dancing; scale to the dancing.
     const scale = a?.motion.length ? [...a.motion].sort((x, y) => x - y)[Math.floor(a.motion.length * 0.98)] || 1 : 1;
     this.timeline.setLayers({
-      wave: a?.wave.length ? a.wave : undefined,
+      wave: (this.heardSound ?? a)?.wave.length ? (this.heardSound ?? a)!.wave : undefined,
       beats: beats.length ? toFrames(beats) : undefined,
       cues: cues.length ? toFrames(cues) : undefined,
       motion: a?.motion.map((v) => v / scale),

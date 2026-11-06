@@ -1,4 +1,5 @@
 import type { Note } from '../shared/types.ts';
+import { snapRange } from './knobs.ts';
 import { t as text } from './strings.ts';
 
 export interface TimelineLayers { wave?: ArrayLike<number>; beats?: number[]; motion?: ArrayLike<number>; onsets?: number[]; cues?: number[] }
@@ -10,6 +11,8 @@ const DRAG_PX = 4;
 export class Timeline {
   range: [number, number] | null = null;
   aiRange: [number, number] | null = null;
+  /** Ranges land on beats while the lights are being set. A note's range stays as rough as it was drawn. */
+  snapBeats = false;
   private frame = 0;
   private notes: Note[] = [];
   private layers: TimelineLayers = {};
@@ -89,7 +92,8 @@ export class Timeline {
       if (!dragging && Math.abs(m.clientX - startX) < DRAG_PX) return;
       dragging = true;
       const b = this.frameAtX(m.clientX);
-      this.setRange(a <= b ? [a, b] : [b, a]);
+      const drawn: [number, number] = a <= b ? [a, b] : [b, a];
+      this.setRange(this.snapBeats ? snapRange(drawn, this.layers.beats ?? []) : drawn);
       for (const cb of this.seekCbs) cb(b);
     };
     const up = () => {
@@ -99,6 +103,8 @@ export class Timeline {
       if (!dragging) {
         if (this.range) this.setRange(null);
         for (const cb of this.seekCbs) cb(a);
+      } else if (this.snapBeats && this.range) {
+        for (const cb of this.seekCbs) cb(this.range[0]); // a snapped range can leave the pointer outside it, where its knobs do nothing
       }
     };
     this.canvas.addEventListener('pointermove', move);
