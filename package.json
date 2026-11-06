@@ -2,7 +2,7 @@
   "name": "gakuya",
   "version": "0.0.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "description": "Pause a rendered AITuber video, point at what looks wrong, and hand it to an AI agent.",
   "type": "module",
   "engines": {

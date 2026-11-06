@@ -20,10 +20,10 @@ test('generated and personal files stay out of git', () => {
   assert.deepEqual(files.filter((f) => /\.(mp4|mov|webm|vrm|vmd|fbx|wav)$/i.test(f)), []);
 });
 
-test('the license is still undecided, and mediabunny is the only runtime dependency', () => {
-  assert.equal(existsSync('LICENSE'), false);
+test('the license is MIT, and mediabunny is the only runtime dependency', () => {
+  assert.match(readFileSync('LICENSE', 'utf8'), /^MIT License/);
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-  assert.equal(pkg.license, 'UNLICENSED');
+  assert.equal(pkg.license, 'MIT');
   assert.equal(pkg.private, true);
   assert.deepEqual(Object.keys(pkg.dependencies), ['mediabunny']);
 });
