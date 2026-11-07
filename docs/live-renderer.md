@@ -43,7 +43,7 @@ The whole state, each time. Answer `200` with any JSON.
 - `rangeValues`: knobs that act inside `range`, or on the whole song when `range` is `null`. At the edges of the range the picture changes at once. The musical transition comes later, from the settings the agent writes.
 - A value replaces the setting; it is never a multiplier. `null` lets go, back to what the settings say.
 - `paused`: whether the song's clock runs. While it runs, advance by your own clock.
-- `seek`: a frame to jump to, or `null` to stay where you are. The page brings you back when you wander more than half a second from the sound, and at the end of a range, since a range repeats.
+- `seek`: the frame the page is on. Go there. Every message says it, so a renderer that reads only the latest message loses nothing. Between messages, while `paused` is false, advance by your own clock. The page sends another message when you wander more than half a second from the sound, and at the end of a range, since a range repeats.
 - `seq` is a 32-bit integer that only goes up. Echo it in `X-Knob-Seq` exactly: a picture with an older number is thrown away as out of date.
 
 ## `POST /reload`
