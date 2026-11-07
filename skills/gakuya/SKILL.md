@@ -66,7 +66,7 @@ Some looks are hard to put into words: how bright, how glossy. For those the per
 
 2. **Measure a value's whole range before you offer a knob.** A value can stop doing anything partway, and where it stops differs from frame to frame. A blur knob once did nothing over nine tenths of its travel on one frame. Step the value across its range on frames from several scenes, calling the renderer's `/knobs` and `/frame` yourself and comparing the pictures. The person's picture moves too, so do this while they are not watching, or tell them first. Then pick `min` and `max` from what you measured, and a `log` scale if equal travel should feel like equal change. If no `min` and `max` work on every frame, find what differs between the frames and change what the knob means in the renderer: lens blur differs with the focus distance, so a knob for the amount of blur works where one for the aperture cannot.
 
-3. **Offer the knobs.** `gakuya knobs --file knobs.json` replaces what is on screen. Offer only what this conversation is about.
+3. **Offer the knobs.** `gakuya knobs --file knobs.json` replaces what is on screen. Offer only what this conversation is about, and only what suits this stage: a knob that works on one stage can blow out or make no sense on another, so its range is measured per stage.
 
    ```json
    [
