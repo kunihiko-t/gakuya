@@ -71,7 +71,6 @@ export class Live {
       if (!this.active) return;
       const r = timeline.range;
       if (playing && r && (viewer.frame < r[0] || viewer.frame > r[1])) { this.jumpTo(r[0]); return; }
-      this.seek = viewer.frame;
       this.send();
     });
     viewer.onFrame((f) => this.onFrame(f));
@@ -93,6 +92,7 @@ export class Live {
       this.renderKnobs();
       if (this.active) this.send();
     }
+    this.panel.hidden = !s.live || !this.knobs.length;
     if (back) { // it may have restarted: its picture count starts over, and it has forgotten the values
       this.frameId = 0;
       if (this.active) this.announce();
@@ -103,7 +103,6 @@ export class Live {
   private setActive(on: boolean): void {
     this.active = on;
     this.canvas.hidden = !on;
-    this.panel.hidden = !on;
     this.toggle.textContent = on ? t.liveOff : t.liveOn;
     this.timeline.snapBeats = on;
     this.announce();
@@ -111,9 +110,14 @@ export class Live {
     this.refresh();
   }
 
+  /** A knob only means something on the renderer's picture, so touching one brings it up. */
+  private touched(): void {
+    if (this.active) this.send();
+    else if (!this.problem) this.setActive(true);
+  }
+
   /** Tells the renderer everything, and waits for a picture that reflects it. */
   private announce(): void {
-    this.seek = this.viewer.frame;
     this.enterSeq = this.seq + 1;
     this.send();
     this.lastPicture = performance.now();
@@ -126,7 +130,8 @@ export class Live {
     this.dirty = false;
     const values: Record<string, number | null> = {}, rangeValues: Record<string, number | null> = {};
     for (const k of this.knobs) (k.scope === 'range' ? rangeValues : values)[k.id] = this.values[k.id];
-    const seek = this.seek;
+    // Every message says where the video is: a renderer reads only the latest, so a jump sent once is lost in a drag.
+    const seek = this.seek ?? this.viewer.frame;
     this.seek = null;
     const paused = !this.active || !this.viewer.playing;
     post('/live/knobs', { seq: ++this.seq, values, rangeValues, range: this.timeline.range, paused, seek })
@@ -173,13 +178,12 @@ export class Live {
     const now = performance.now();
     if (now - this.lastResync < RESYNC_MS) return;
     this.lastResync = now;
-    this.seek = this.viewer.frame;
     this.send();
   }
 
   private onFrame(f: number): void {
     if (!this.active) return;
-    if (!this.viewer.playing) { this.seek = f; this.send(); return; }
+    if (!this.viewer.playing) { this.send(); return; }
     const r = this.timeline.range;
     if (r && f > r[1]) this.jumpTo(r[0]); // a chosen range repeats. Not on f < r[0]: landing on its start can read as one frame before.
   }
@@ -224,12 +228,15 @@ export class Live {
       slider.min = '0';
       slider.max = String(STEPS);
       slider.setAttribute('aria-label', k.label);
-      const at = this.values[k.id];
-      slider.value = String(at === null ? STEPS / 2 : valueToSlider(k, at));
+      const place = () => {
+        const at = this.values[k.id];
+        slider.value = String(at === null ? STEPS / 2 : valueToSlider(k, at));
+      };
+      place();
       slider.addEventListener('input', () => {
         this.values[k.id] = sliderToValue(k, Number(slider.value));
         shown.textContent = format(k, this.values[k.id]);
-        this.send();
+        this.touched();
       });
       slider.addEventListener('change', () => slider.blur()); // leave the keys for stepping and playing
       label.append(slider);
@@ -241,7 +248,8 @@ export class Live {
         reset.addEventListener('click', () => {
           this.values[k.id] = null;
           shown.textContent = format(k, null);
-          this.send();
+          place();
+          this.touched();
           reset.blur();
         });
         row.append(reset);

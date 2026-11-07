@@ -25,7 +25,7 @@ Nothing gets fixed until you press yes. If the agent has the wrong spot, point a
 
 ![The new version and the previous version side by side on frame 90](docs/media/compare.png)
 
-For lighting, the page can show a renderer's picture instead of the video. Move the knobs the agent offers, choose a range on the timeline for the ones that act on part of the song, and press "このぐらい" (about this much).
+For lighting, the knobs the agent offers appear beside the video. Moving one brings up a renderer's picture in its place, on the same frame. Choose a range on the timeline for the knobs that act on part of the song, and press "このぐらい" (about this much).
 
 ![The live picture with the agent's knobs beside it, and a range chosen on the timeline](docs/media/live.png)
 
@@ -62,7 +62,7 @@ The page is in Japanese for now.
 - **Compare.** Choose the previous version, or a reference video by its path, with an offset in seconds. Both pictures play, stop and step together.
 - **Feel the timing.** A warm ring around the picture pulses on the beat, a blue one where the motion actually starts. The picture itself is never covered. Correct the tempo by hand if the detection is off.
 - **Choose the sound.** Play the reference's sound, a sound file, or only the sound of another video in place of this video's. The waveform and beats come from what is playing; a tempo set by hand stays.
-- **Set the lights.** With a renderer attached (`--live`), see its picture over the chosen sound and move the knobs the agent offers. A range drawn here lands on beats and repeats. "このぐらい" tells the agent the values; nothing reaches it before that. You bring the renderer: see [the contract](docs/live-renderer.md).
+- **Set the lights.** With a renderer attached (`--live`), the knobs the agent offers are always beside the picture. Moving one brings up the renderer's picture over the chosen sound, and "場面どおりに戻す" (back to the scene) lets a knob go. What a knob does depends on the renderer and the stage, so the same value can look different on another stage. A range drawn here lands on beats and repeats. "このぐらい" tells the agent the values; nothing reaches it before that. You bring the renderer: see [the contract](docs/live-renderer.md).
 
 ## Commands
 

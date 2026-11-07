@@ -149,6 +149,59 @@ test('moving a knob changes the picture, and only settling reaches the agent', a
   assert.equal(srv.nextEvent(), null, 'delivered once');
 });
 
+test('the knobs are there without looking for them, and moving one brings up the live picture', async () => {
+  const { page, srv, renderer } = await open();
+  assert.equal(await page.locator('#knobs').isVisible(), false, 'nothing to show until the agent offers knobs');
+  await srv.post('/api/knobs', knobs);
+  await page.waitForSelector('.knob[data-knob="gloss"]', { state: 'visible' });
+  assert.equal(await page.locator('#left canvas.live').isVisible(), false, 'the video stays until a knob is touched');
+  await slide(page, 'gloss', 800);
+  await page.waitForFunction(() => (window as any).gakuya.live.connected);
+  assert.equal(await page.locator('#left canvas.live').isVisible(), true);
+  assert.equal(await page.locator('#live-toggle').textContent(), '動画に戻す');
+  assert.ok(renderer.got.at(-1).values.gloss > 2);
+
+  await page.click('#live-toggle');
+  assert.equal(await page.locator('#left canvas.live').isVisible(), false);
+  assert.equal(await page.locator('.knob[data-knob="gloss"]').isVisible(), true, 'the knobs stay after going back to the video');
+  await page.locator('.knob[data-knob="hue"] button').click();
+  assert.equal(await page.locator('#left canvas.live').isVisible(), true, 'putting a knob back is touching it too');
+});
+
+test('dragging a knob keeps the picture on the frame in view, on a renderer that reads only the latest message', async () => {
+  const { page, srv, renderer } = await open();
+  await srv.post('/api/knobs', knobs);
+  await page.waitForSelector('.knob[data-knob="gloss"]', { state: 'visible' });
+  await page.evaluate(() => (window as any).gakuya.left.seek(120));
+  await page.waitForFunction(() => /コマ 120 /.test(document.getElementById('frame-no')?.textContent ?? ''));
+  for (const to of [600, 650, 700, 750, 800]) await slide(page, 'gloss', to);
+  await page.waitForFunction(() => (document.querySelector('#left canvas.live') as HTMLElement).dataset.frame !== undefined);
+  await page.waitForTimeout(300);
+  assert.equal(renderer.got.at(-1).seek, 120, 'the last message is the one that counts');
+  assert.equal(await page.locator('#left canvas.live').getAttribute('data-frame'), '120');
+});
+
+test('putting a knob back moves its slider back too', async () => {
+  const { page, srv } = await open();
+  await srv.post('/api/knobs', knobs);
+  await page.waitForSelector('.knob[data-knob="hue"]', { state: 'visible' });
+  const slider = page.locator('.knob[data-knob="hue"] input[type=range]');
+  const start = await slider.inputValue();
+  await slide(page, 'hue', 900);
+  assert.notEqual(await slider.inputValue(), start);
+  await page.locator('.knob[data-knob="hue"] button').click();
+  assert.equal(await slider.inputValue(), start);
+});
+
+test('a knob cannot bring up the picture of a renderer that was refused', async () => {
+  const { page, srv } = await open({ ...INFO, frames: 299 });
+  await srv.post('/api/knobs', knobs);
+  await page.waitForSelector('.knob[data-knob="gloss"]', { state: 'visible' });
+  await page.waitForFunction(() => document.getElementById('live-problem')!.textContent !== '');
+  await slide(page, 'gloss', 800);
+  assert.equal(await page.locator('#left canvas.live').isVisible(), false);
+});
+
 test('entering live on a stopped video keeps the renderer stopped, at the same frame', async () => {
   const { page, renderer } = await open();
   await page.click('#live-toggle');
