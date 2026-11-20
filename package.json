@@ -14,7 +14,7 @@
     "demo": "node scripts/make-demo.mjs"
   },
   "dependencies": {
-    "mediabunny": "^1.65.2"
+    "mediabunny": "^1.66.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
